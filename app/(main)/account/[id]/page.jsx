@@ -4,7 +4,7 @@ import React from 'react'
 import { Suspense } from 'react';
 import TransactionTable from '../components/transactionTable';
 import BarLoader from "react-spinners/BarLoader";
-
+import { AccountChart } from '../components/account-chart';
 const AccountsPage = async ({params}) => {
     const {id} = await params;
     const accountData=await getAccountWithTransactions(id);
