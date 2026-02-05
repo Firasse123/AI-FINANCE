@@ -93,7 +93,7 @@ catch(error){
 }
 }
 
-export async function updateTransaction(transactionId, data) {
+export async function updateTransaction(id, data) {
   try {
     const { userId } = await auth();
     if (!userId) throw new Error("Unauthorized!");
@@ -110,9 +110,12 @@ export async function updateTransaction(transactionId, data) {
     // Get the existing transaction
     const existingTransaction = await db.transaction.findUnique({
       where: {
-        id: transactionId,
+        id,
         userId: user.id,
       },
+      include:{
+
+      }
     });
 
     if (!existingTransaction) {
@@ -134,7 +137,8 @@ export async function updateTransaction(transactionId, data) {
     const updatedTransaction = await db.$transaction(async (tx) => {
       const updated = await tx.transaction.update({
         where: {
-          id: transactionId,
+          id,
+          userId: user.id,
         },
         data: {
           ...data,
@@ -166,33 +170,6 @@ export async function updateTransaction(transactionId, data) {
     console.error("Error updating transaction:", error);
     throw new Error(error.message);
   }
-}
-
-
-
-
-
-
-// Helper function to calculate next recurring date
-function calculateNextRecurringDate(startDate, interval) {
-  const date = new Date(startDate);
-
-  switch (interval) {
-    case "DAILY":
-      date.setDate(date.getDate() + 1);
-      break;
-    case "WEEKLY":
-      date.setDate(date.getDate() + 7);
-      break;
-    case "MONTHLY":
-      date.setMonth(date.getMonth() + 1);
-      break;
-    case "YEARLY":
-      date.setFullYear(date.getFullYear() + 1);
-      break;
-  }
-
-  return date;
 }
 
 export async function scanReceipt(file){
@@ -288,3 +265,105 @@ export async function scanReceipt(file){
     throw new Error("Error processing receipt: " + error.message);
   }
 }
+
+export async function getTransaction(id){
+
+try{
+                const {userId}=await auth();
+                if(!userId) throw new Error("Unauthorized!");
+
+                // TODO: Implement Arcjet protection for Server Actions
+                 const req=await request();
+                 const decision=await aj.protect(req,{
+                    userId,
+                    requested:1
+                })
+                 if(decision.isDenied()){
+                    if(decision.reason.isRateLimit()){
+                       const{remaining,reset}=decision.reason;
+                      console.error({
+                  code: "RATE_LIMIT_EXCEEDED",
+                  details: {
+                     remaining,
+                     resetInSeconds: reset,
+                   },
+                 });
+                    throw new Error("Too many requests. Please try again later.");
+                   }
+                   throw new Error("Request blocked");
+                 }
+        
+                const user=await db.user.findUnique({
+                    where:{
+                        clerkUserId:userId
+                    }
+                });
+                if(!user){
+                    throw new Error("User not found");
+                }
+                const transaction=await db.transaction.findUnique({
+                  where:{
+                    id,
+                    userId:user.id,
+                  }
+                });
+                if(!transaction){
+                  throw new Error("Transaction not found");
+                }
+                return serializeAmount(transaction);
+
+}
+catch(error){
+  console.error("Error getting transaction:", error);
+  throw new Error("Error getting transaction: " + error.message);
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Helper function to calculate next recurring date
+function calculateNextRecurringDate(startDate, interval) {
+  const date = new Date(startDate);
+
+  switch (interval) {
+    case "DAILY":
+      date.setDate(date.getDate() + 1);
+      break;
+    case "WEEKLY":
+      date.setDate(date.getDate() + 7);
+      break;
+    case "MONTHLY":
+      date.setMonth(date.getMonth() + 1);
+      break;
+    case "YEARLY":
+      date.setFullYear(date.getFullYear() + 1);
+      break;
+  }
+
+  return date;
+}
+
