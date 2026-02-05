@@ -5,6 +5,9 @@ import { db } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import aj from "@/lib/arcjet";
 
+const api_key = process.env.OPENROUTER_API_KEY;
+const api_url = "https://openrouter.ai/api/v1/chat/completions";
+ const model = "openai/gpt-4o-mini";
 
 const serializeAmount = (obj) => ({
   ...obj,
@@ -165,6 +168,11 @@ export async function updateTransaction(transactionId, data) {
   }
 }
 
+
+
+
+
+
 // Helper function to calculate next recurring date
 function calculateNextRecurringDate(startDate, interval) {
   const date = new Date(startDate);
@@ -188,5 +196,95 @@ function calculateNextRecurringDate(startDate, interval) {
 }
 
 export async function scanReceipt(file){
+  try{
+    const arrayBuffer=await file.arrayBuffer();
 
+    const base64String=Buffer.from(arrayBuffer).toString("base64");
+
+    const prompt=` Analyze this receipt image and extract the following information in JSON format:
+      - Total amount (just the number)
+      - Date (in ISO format)
+      - Description or items purchased (brief summary)
+      - Merchant/store name
+      - Suggested category (one of: housing,transportation,groceries,utilities,entertainment,food,shopping,healthcare,education,personal,travel,insurance,gifts,bills,other-expense )
+      
+      Only respond with valid JSON in this exact format:
+      {
+        "amount": number,
+        "date": "ISO date string",
+        "description": "string",
+        "merchantName": "string",
+        "category": "string"
+      }
+
+      If its not a recipt, return an empty object
+    `;
+
+    
+    // Make API call to OpenRouter
+    const response = await fetch(api_url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${api_key}`,
+        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+        "X-Title": "Finance App Receipt Scanner",
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: prompt,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${file.type};base64,${base64String}`,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`OpenRouter API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const result = await response.json();
+    const text = result.choices[0].message.content;
+
+    // Clean the response text
+    const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();
+
+    try {
+      const data = JSON.parse(cleanedText);
+      
+      // Check if empty object (not a receipt)
+      if (Object.keys(data).length === 0) {
+        throw new Error("This doesn't appear to be a receipt");
+      }
+
+      return {
+        amount: parseFloat(data.amount),
+        date: new Date(data.date),
+        description: data.description,
+        category: data.category,
+        merchantName: data.merchantName,
+      };
+    } catch (parseError) {
+      console.error("Error parsing JSON from model response:", parseError);
+      console.error("Raw response:", text);
+      throw new Error("Failed to extract data from receipt. Please try again.");
+    }
+  } catch (error) {
+    console.error("Error processing receipt:", error);
+    throw new Error("Error processing receipt: " + error.message);
+  }
 }

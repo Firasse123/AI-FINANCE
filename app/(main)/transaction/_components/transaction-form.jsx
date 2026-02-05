@@ -4,11 +4,11 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarIcon, Loader2 } from "lucide-react";
-import { format } from "date-fns";
+import { format, set } from "date-fns";
 import { useRouter } from "next/navigation";
 import useFetch from "@/hooks/use-fetch";
 import { toast } from "sonner";
-
+import ReceiptScanner from "./receipt-scanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -75,13 +75,27 @@ export function AddTransactionForm({ accounts, categories }) {
   const type = watch("type");
   const isRecurring = watch("isRecurring");
   const date = watch("date");
+  const category = watch("category");
 
   const filteredCategories = categories.filter(
     (category) => category.type === type
   );
+const handleScanComplete=(scannedData)=>{
+    if(scannedData){
+        setValue("amount",scannedData.amount.toString());
+        setValue("date",new Date(scannedData.date));
+        if(scannedData.description){
+        setValue("description",scannedData.description);}
+        if(scannedData.category){
+        setValue("category",scannedData.category);
 
+    }
+}}
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <ReceiptScanner onScanComplete={handleScanComplete}></ReceiptScanner>
+
+
       {/* Type */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Type</label>
@@ -153,7 +167,7 @@ export function AddTransactionForm({ accounts, categories }) {
         <label className="text-sm font-medium">Category</label>
         <Select
           onValueChange={(value) => setValue("category", value)}
-          defaultValue={getValues("category")}
+          value={category || ""}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select category" />
