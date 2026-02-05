@@ -10,6 +10,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@arcjet/inspect": "^1.0.0",
+    "@arcjet/next": "^1.0.0",
     "@clerk/nextjs": "^6.37.1",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/adapter-pg": "^7.3.0",
